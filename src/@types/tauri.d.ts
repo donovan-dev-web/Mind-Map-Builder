@@ -1,0 +1,9 @@
+declare module '@tauri-apps/api';
+declare module '@tauri-apps/api/event';
+declare module '@tauri-apps/api/updater';
+declare module '@tauri-apps/api/process';
+declare module "@tauri-apps/api/tauri";
+declare module "@tauri-apps/api/window";
+declare module "@tauri-apps/api/path";
+declare module "@tauri-apps/api/dialog";
+declare module "@tauri-apps/api/fs";
