@@ -92,10 +92,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { MindMapCanvas, MindMapCanvasHandles, SelectionMode, ProjectConfig } from "@/components/canvas/mind-map-canvas";
-import { ReactFlowProvider, useReactFlow, Node, Edge, NodeTypes, EdgeTypes, useStoreApi } from "reactflow";
+import { ReactFlowProvider, useReactFlow, Node, Edge, NodeTypes, EdgeTypes } from "reactflow";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cva } from "class-variance-authority";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -120,8 +119,7 @@ import { getNodeTemplates } from "@/services/node-template.service";
 import { defaultTemplates } from "@/lib/default-node-templates";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { openProject, saveProject, importImageForNode, listenForOpenFile, exportAs } from "@/services/project-manager";
-import { useToast } from "@/hooks/use-toast";
+import { openProject, saveProject, importImageForNode, listenForOpenFile } from "@/services/project-manager";
 import { useUpdater } from "@/hooks/use-updater";
 import { openDesignerWindow } from "@/services/window.service";
 
@@ -404,7 +402,6 @@ function EditorUI({ projectConfig, loadedProject, onProjectLoad }: { projectConf
   const { config } = useConfig();
   const { updateAvailable } = useUpdater();
   const t = translations[config.language];
-  const { toast } = useToast();
   const reactFlowInstance = useReactFlow();
   const headerRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<MindMapCanvasHandles>(null);

@@ -7,8 +7,6 @@ import { invokeTauri } from "./tauri";
  * Loads the configuration. Uses Tauri when available, otherwise localStorage.
  */
 export async function loadConfig(): Promise<Config> {
-  console.log("isTauri check:", isTauri());
-
   if (isTauri()) {
     try {
       const configStr = await invokeTauri<string | null>("load_config");
@@ -45,7 +43,6 @@ export async function loadConfig(): Promise<Config> {
  * Saves the configuration.
  */
 export async function saveConfig(config: Config): Promise<void> {
-  console.log("isTauri check:", isTauri());
   const configString = JSON.stringify(config, null, 2);
 
   if (isTauri()) {

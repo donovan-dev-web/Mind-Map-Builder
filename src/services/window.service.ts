@@ -26,7 +26,6 @@ export async function openDesignerWindow(router?: ReturnType<typeof useNavigate>
         height: 800,
       });
 
-      webview.once?.("tauri://created", () => console.log("Designer window created"));
       webview.once?.("tauri://error", (e: any) => console.error("Failed to create designer window", e));
 
       return;
@@ -65,7 +64,6 @@ export async function closeCurrentWindow() {
       const currentWin = getCurrent?.();
       if (currentWin && typeof currentWin.close === "function") {
         await currentWin.close();
-        console.log("Current window closed via getCurrent()");
         return;
       }
 
@@ -74,7 +72,6 @@ export async function closeCurrentWindow() {
         const win = WebviewWindow.getByLabel?.("designer");
         if (win && typeof win.close === "function") {
           await win.close();
-          console.log("Designer window closed via label");
           return;
         }
       }
@@ -83,7 +80,6 @@ export async function closeCurrentWindow() {
       const appWindow = (mod as any).appWindow ?? (mod as any).default?.appWindow;
       if (appWindow && typeof appWindow.close === "function") {
         await appWindow.close();
-        console.log("appWindow closed");
         return;
       }
 

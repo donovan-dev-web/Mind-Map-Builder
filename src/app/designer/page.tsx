@@ -1,9 +1,9 @@
 
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { X, View, Square, Circle, Type, Plus, Save, GripVertical, Trash2, Image as ImageIcon, Minus as LineIcon, Layers, Text, Edit, ArrowUp, ArrowDown, FolderOpen, Bold, Italic, Upload, Database, FilePlus, AlertTriangle, AlignHorizontalJustifyCenter, AlignHorizontalJustifyStart, AlignHorizontalJustifyEnd, AlignVerticalJustifyCenter, AlignVerticalJustifyStart, AlignVerticalJustifyEnd, AlignHorizontalSpaceAround, AlignVerticalSpaceAround, Loader2 } from 'lucide-react';
+import { X, View, Square, Circle, Type, Plus, Save, GripVertical, Trash2, Image as ImageIcon, Minus as LineIcon, Layers, Text, Edit, ArrowUp, ArrowDown, FolderOpen, Bold, Italic, Upload, Database, FilePlus, AlignHorizontalJustifyCenter, AlignHorizontalJustifyStart, AlignHorizontalJustifyEnd, AlignVerticalJustifyCenter, AlignVerticalJustifyStart, AlignVerticalJustifyEnd, AlignHorizontalSpaceAround, AlignVerticalSpaceAround, Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -11,13 +11,13 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import ReactFlow, { Node, Position, ReactFlowProvider } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { CustomNode } from '@/components/canvas/nodes/custom-node';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { CustomNodeLayout, HandleElement, SvgElement } from '@/lib/node-templates';
+import { CustomNodeLayout, HandleElement } from '@/lib/node-templates';
 import { saveNodeTemplate, getNodeTemplates, deleteNodeTemplate, importSvgFile } from '@/services/node-template.service';
 import { defaultTemplates } from '@/lib/default-node-templates';
 import { useToast } from '@/hooks/use-toast';
@@ -25,7 +25,6 @@ import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/comp
 import { closeCurrentWindow } from '@/services/window.service';
 import { useConfig } from '@/hooks/use-config';
 import { translations } from '@/config/translations';
-import { isTauri } from '@/services/utils';
 
 const nodeTypes = { custom: CustomNode };
 const gridSize = 15;
@@ -165,7 +164,7 @@ function DesignerPageComponent() {
   const [previewLayout, setPreviewLayout] = useState<CustomNodeLayout | null>(null);
   const [savedTemplates, setSavedTemplates] = useState<CustomNodeLayout[]>([]);
   const { toast } = useToast();
-    const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
 
   const lastSelectedId = selectedElementIds.length > 0 ? selectedElementIds[selectedElementIds.length - 1] : null;
   const selectedElement = nodeElements.find(el => el.id === lastSelectedId) || null;
@@ -179,43 +178,26 @@ function DesignerPageComponent() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
 
-useEffect(() => {
-  async function testAppWindow() {
-    if (!isTauri()) return;
-    try {
-      const TauriWindow = await import('@tauri-apps/api/window');
-      console.log('TauriWindow.appWindow:', TauriWindow.appWindow);
-    } catch (e) {
-      console.error('Erreur import appWindow:', e);
-    }
-  }
-
-  testAppWindow();
-}, []);
-  
     useEffect(() => {
-        // Correction : useSearchParams retourne [params, setParams]
-        const params = searchParams[0];
-        const isEditMode = params.get('edit') === 'true';
-        if (isEditMode) {
-            const layoutJson = sessionStorage.getItem('edit-node-layout');
-            if (layoutJson) {
-                try {
-                    const layout = JSON.parse(layoutJson);
-                    handleLoadTemplate(layout, false);
-                    // Clean up sessionStorage
-                    sessionStorage.removeItem('edit-node-layout');
-                } catch (e) {
-                    console.error("Failed to parse layout from session storage", e);
-                    toast({
-                        variant: "destructive",
-                        title: t.designerErrorLoad,
-                        description: t.designerErrorLoadDescription,
-                    });
-                }
-            }
+        const layoutJson = sessionStorage.getItem('edit-node-layout');
+        const isEditMode = searchParams.get('edit') === 'true' || !!layoutJson;
+
+        if (!isEditMode || !layoutJson) return;
+
+        try {
+            const layout = JSON.parse(layoutJson);
+            handleLoadTemplate(layout, false);
+            sessionStorage.removeItem('edit-node-layout');
+        } catch (e) {
+            console.error("Failed to parse layout from session storage", e);
+            sessionStorage.removeItem('edit-node-layout');
+            toast({
+                variant: "destructive",
+                title: t.designerErrorLoad,
+                description: t.designerErrorLoadDescription,
+            });
         }
-    }, [searchParams, t]);
+    }, [searchParams, t, toast]);
 
   useEffect(() => {
     async function loadTemplates() {
@@ -287,8 +269,24 @@ useEffect(() => {
   const importSvg = async () => {
     const svgContent = await importSvgFile();
     if (svgContent) {
-        // TODO: Implement parsing logic for the SVG content
-        console.log("SVG content received, parsing to be implemented:", svgContent);
+        if (!canvasRef.current) return;
+        const canvasRect = canvasRef.current.getBoundingClientRect();
+        const width = 120;
+        const height = 120;
+        const imageElement: ImageElement = {
+            id: `image-${Date.now()}`,
+            type: 'image',
+            x: canvasRect.width / 2 - width / 2,
+            y: canvasRect.height / 2 - height / 2,
+            width,
+            height,
+            dataKey: `image_${fieldElements.length + 1}`,
+            src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgContent)}`,
+            borderRadius: { tl: 0, tr: 0, br: 0, bl: 0 },
+        };
+
+        setNodeElements(prev => [...prev, imageElement]);
+        setSelectedElementIds([imageElement.id]);
         toast({
             title: t.designerSvgImported,
             description: t.designerSvgImportedDescription,
@@ -483,7 +481,7 @@ useEffect(() => {
     return () => {
         window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectedElementIds, nodeElements]);
+    }, [selectedElementIds]);
 
   const handleMouseDown = (e: React.MouseEvent, el?: DesignerElement, handleType?: 'start' | 'end') => {
     e.stopPropagation();

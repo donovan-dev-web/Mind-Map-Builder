@@ -217,7 +217,7 @@ export function NewProjectModal({
     sessionStorage.setItem('new-project-config', JSON.stringify(projectConfig));
 
     resetState();
-    window.location.href = "/editor";
+    navigate("/editor");
   };
 
   const renderStep1 = () => (

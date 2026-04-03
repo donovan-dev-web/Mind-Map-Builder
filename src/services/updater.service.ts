@@ -75,7 +75,6 @@ export async function downloadUpdate(onProgress: (percent: number) => void): Pro
  */
 export async function installUpdate(): Promise<void> {
   if (!isTauri()) {
-    alert("Simulating app restart to install update.");
     return;
   }
 

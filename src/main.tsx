@@ -1,5 +1,4 @@
 import React from 'react';
-  console.log("TAURI_IPC?", (window as any).__TAURI_IPC__);
 
     import ReactDOM from 'react-dom/client';
     import App from './App'; 

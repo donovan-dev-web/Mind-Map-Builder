@@ -1,6 +1,5 @@
 
-
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, Unlink, Type, Spline, MoveUpRight, Minus, CornerDownRight, Square, RectangleHorizontal, Circle, ChevronRight, GitBranch, PencilRuler, CaseSensitive, Link as LinkIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -182,7 +181,7 @@ export function ContextMenu({
                     <SubMenuItem icon={RectangleHorizontal} label={t.nodeStyleRounded} onClick={() => handleNodeTypeSelect("rounded")} />
                     <SubMenuItem icon={Circle} label={t.nodeStyleOval} onClick={() => handleNodeTypeSelect("oval")} />
                     <Separator className="my-1" />
-                    <SubMenuItem icon={PencilRuler} label="Personnalisé" onMouseEnter={(e) => handleSubMenuEnter('custom-type', e)}>
+                    <SubMenuItem icon={PencilRuler} label={t.nodeStyleCustom} onMouseEnter={(e) => handleSubMenuEnter('custom-type', e)}>
                          <ChevronRight className="absolute right-2 h-4 w-4" />
                     </SubMenuItem>
                 </div>
@@ -194,7 +193,7 @@ export function ContextMenu({
                     style={{top: subMenuPosition.top, left: subMenuPosition.left}}
                 >
                     <ScrollArea className="max-h-48">
-                        <div className="text-sm font-semibold px-2 py-1.5">Mes modèles</div>
+                        <div className="text-sm font-semibold px-2 py-1.5">{t.designerMyTemplates}</div>
                         <Separator className="my-1" />
                         {userTemplates.length > 0 ? (
                             userTemplates.map(template => (
@@ -206,9 +205,9 @@ export function ContextMenu({
                                 />
                             ))
                         ) : (
-                            <div className="px-2 py-1.5 text-sm text-muted-foreground">Aucun modèle</div>
+                            <div className="px-2 py-1.5 text-sm text-muted-foreground">{t.designerNoTemplate}</div>
                         )}
-                        <div className="text-sm font-semibold px-2 py-1.5 mt-2">Modèles par défaut</div>
+                        <div className="text-sm font-semibold px-2 py-1.5 mt-2">{t.designerDefaultTemplates}</div>
                         <Separator className="my-1" />
                          {defaultTemplates.map(template => (
                             <SubMenuItem
@@ -250,8 +249,8 @@ export function ContextMenu({
       )}
        {isMultiSelection && (
         <>
-            <MenuItem icon={LinkIcon} label="Lier les nœuds" onClick={handleConnectClick} disabled={selectedNodeCount !== 2} />
-            <MenuItem icon={Trash2} label="Supprimer la sélection" className="text-destructive hover:text-destructive" onClick={onDeleteNode} />
+            <MenuItem icon={LinkIcon} label={t.ribbonConnect} onClick={handleConnectClick} disabled={selectedNodeCount !== 2} />
+            <MenuItem icon={Trash2} label={t.contextMenuDeleteSelection} className="text-destructive hover:text-destructive" onClick={onDeleteNode} />
         </>
       )}
     </div>
