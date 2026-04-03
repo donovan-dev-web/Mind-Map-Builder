@@ -5,6 +5,46 @@ import type { CustomNodeLayout } from "@/lib/node-templates";
 
 const TEMPLATES_STORAGE_KEY = "custom-node-templates";
 
+const readFileAsText = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+
+const promptForFile = (accept: string): Promise<File | null> =>
+  new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = accept;
+    input.style.display = "none";
+
+    const cleanup = () => {
+      window.removeEventListener("focus", handleWindowFocus);
+      input.onchange = null;
+      input.remove();
+    };
+
+    const handleWindowFocus = () => {
+      window.setTimeout(() => {
+        if (input.files?.length) return;
+        cleanup();
+        resolve(null);
+      }, 300);
+    };
+
+    input.onchange = () => {
+      const file = input.files?.[0] ?? null;
+      cleanup();
+      resolve(file);
+    };
+
+    window.addEventListener("focus", handleWindowFocus, { once: true });
+    document.body.appendChild(input);
+    input.click();
+  });
+
 /**
  * List all custom node templates.
  * Returns an array of CustomNodeLayout objects.
@@ -66,7 +106,7 @@ export async function saveNodeTemplate(template: CustomNodeLayout): Promise<void
 export async function deleteNodeTemplate(name: string): Promise<void> {
   if (isTauri()) {
     try {
-      await invokeTauri("delete_node_template", { templateName: name });
+      await invokeTauri("delete_node_template", { template_name: name });
       return;
     } catch (e) {
       console.error("Tauri delete_node_template failed:", e);
@@ -89,16 +129,12 @@ export async function deleteNodeTemplate(name: string): Promise<void> {
  * This is a Tauri-specific feature.
  */
 export async function importSvgFile(): Promise<string> {
-  if (isTauri()) {
-    try {
-      const res = await invokeTauri<string>("import_svg_file");
-      return res ?? "";
-    } catch (e) {
-      console.error("Tauri import_svg_file failed:", e);
-      return "";
-    }
+  try {
+    const file = await promptForFile(".svg,image/svg+xml");
+    if (!file) return "";
+    return await readFileAsText(file);
+  } catch (e) {
+    console.error("SVG import failed:", e);
+    return "";
   }
-
-  alert("SVG import is only available in the desktop application.");
-  return "";
 }

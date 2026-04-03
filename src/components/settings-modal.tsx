@@ -287,7 +287,7 @@ export function SettingsModal({
                 <div className="w-full text-left p-4 border rounded-lg bg-muted/50 space-y-4">
                     <h3 className="font-semibold text-lg text-foreground">{t.updateAvailableTitle.replace('{version}', updater.updateManifest.version)}</h3>
                     <div className="prose prose-sm dark:prose-invert max-w-none">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{t.language === 'en' ? 'New features added.' : updater.updateManifest.body}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{config.language === 'en' ? 'New features added.' : updater.updateManifest.body}</ReactMarkdown>
                     </div>
                     <Button onClick={updater.startDownload}>
                         <DownloadCloud className="mr-2 h-4 w-4" />

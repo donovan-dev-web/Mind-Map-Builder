@@ -4,6 +4,7 @@ import { toast } from "@/hooks/use-toast";
 import { translations } from "@/config/translations";
 import { loadConfig } from "./config.service";
 import { toPng, toJpeg, toSvg } from "html-to-image";
+import jsPDF from "jspdf";
 import { isTauri } from "./utils";
 import { pageSizes } from "@/components/printable-view";
 import { invokeTauri, listenTauri } from "./tauri";
@@ -15,6 +16,64 @@ const getTranslations = async () => {
   return translations[config.language];
 };
 
+const readFileAsText = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file);
+  });
+
+const readFileAsDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+
+const promptForFile = (accept: string): Promise<File | null> =>
+  new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = accept;
+    input.style.display = "none";
+
+    const cleanup = () => {
+      window.removeEventListener("focus", handleWindowFocus);
+      input.onchange = null;
+      input.remove();
+    };
+
+    const handleWindowFocus = () => {
+      window.setTimeout(() => {
+        if (input.files?.length) return;
+        cleanup();
+        resolve(null);
+      }, 300);
+    };
+
+    input.onchange = () => {
+      const file = input.files?.[0] ?? null;
+      cleanup();
+      resolve(file);
+    };
+
+    window.addEventListener("focus", handleWindowFocus, { once: true });
+    document.body.appendChild(input);
+    input.click();
+  });
+
+const downloadBlob = (blob: Blob, fileName: string) => {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+};
+
 /**
  * Saves the current project state.
  */
@@ -23,17 +82,7 @@ export async function saveProject(projectState: ReactFlowJsonObject): Promise<vo
   const dataString = JSON.stringify(projectState, null, 2);
 
   if (isTauri()) {
-    // Try both camelCase and snake_case keys (robustness)
-    try {
-      await invokeTauri("save_project", { projectState: dataString });
-    } catch (e1) {
-      try {
-        await invokeTauri("save_project", { project_state: dataString });
-      } catch (e2) {
-        console.error("save_project invoke failed:", e1, e2);
-        throw e2;
-      }
-    }
+    downloadBlob(new Blob([dataString], { type: "application/json" }), "mind-map-project.json");
     toast({ title: t.saveProjectSuccess });
     return;
   }
@@ -54,7 +103,9 @@ export async function openProject(): Promise<ReactFlowJsonObject | null> {
 
   if (isTauri()) {
     try {
-      const projectJson = await invokeTauri<string | null>("open_project");
+      const file = await promptForFile(".json,application/json");
+      if (!file) return null;
+      const projectJson = await readFileAsText(file);
       if (!projectJson) return null;
       try {
         const projectData = JSON.parse(projectJson);
@@ -107,7 +158,12 @@ export async function openProject(): Promise<ReactFlowJsonObject | null> {
 export async function exportAs(
   format: "png" | "jpeg" | "svg" | "pdf",
   element: HTMLElement,
-  options?: any & { fileName?: string; paperSize?: keyof typeof pageSizes; orientation?: "portrait" | "landscape" }
+  options?: any & {
+    fileName?: string;
+    paperSize?: keyof typeof pageSizes;
+    orientation?: "portrait" | "landscape";
+    margins?: { top: number; right: number; bottom: number; left: number };
+  }
 ): Promise<void> {
   const t = await getTranslations();
   const { fileName = "export", ...captureOptions } = options || {};
@@ -117,37 +173,58 @@ export async function exportAs(
 
   try {
     const exportFns = { png: toPng, jpeg: toJpeg, svg: toSvg };
+    if (format === "pdf") {
+      const dataUrl = await toPng(element, finalCaptureOptions);
+      const paperSize = (options?.paperSize ?? "A4") as keyof typeof pageSizes;
+      const orientation = options?.orientation ?? "portrait";
+      const margins = options?.margins ?? { top: 10, right: 10, bottom: 10, left: 10 };
+      const page = pageSizes[paperSize];
+      const pageWidth = orientation === "portrait" ? page.width : page.height;
+      const pageHeight = orientation === "portrait" ? page.height : page.width;
+      const pdf = new jsPDF({
+        orientation,
+        unit: "mm",
+        format: [pageWidth, pageHeight],
+      });
+
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Failed to load PNG export for PDF rendering."));
+        img.src = dataUrl;
+      });
+
+      const usableWidth = Math.max(pageWidth - margins.left - margins.right, 1);
+      const usableHeight = Math.max(pageHeight - margins.top - margins.bottom, 1);
+      const scale = Math.min(usableWidth / img.width, usableHeight / img.height);
+      const renderWidth = img.width * scale;
+      const renderHeight = img.height * scale;
+      const offsetX = margins.left + (usableWidth - renderWidth) / 2;
+      const offsetY = margins.top + (usableHeight - renderHeight) / 2;
+
+      pdf.addImage(dataUrl, "PNG", offsetX, offsetY, renderWidth, renderHeight);
+      pdf.save(`${fileName}.pdf`);
+      toast({ title: t.exportSuccessTitle, description: t.exportSuccessDescription });
+      return;
+    }
+
     const result = await (exportFns as any)[format](element, finalCaptureOptions);
 
     if (isTauri()) {
       if (format === "svg") {
-        // result is an SVG string
-        await invokeTauri("export_as_svg", { svg: result, fileName: `${fileName}.svg` });
+        downloadBlob(new Blob([result as string], { type: "image/svg+xml" }), `${fileName}.svg`);
       } else {
-        // result is a dataURL -> strip prefix and send base64
-        const dataUrl: string = result as string;
-        const base64Data = dataUrl.substring(dataUrl.indexOf(",") + 1);
-        const cmd = `export_as_${format}`;
-        await invokeTauri(cmd, { data: base64Data, fileName: `${fileName}.${format}` });
+        const response = await fetch(result as string);
+        const blob = await response.blob();
+        downloadBlob(blob, `${fileName}.${format}`);
       }
     } else {
-      // Web fallback: trigger download
       if (format === "svg") {
-        const blob = new Blob([result as string], { type: "image/svg+xml" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${fileName}.svg`;
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
+        downloadBlob(new Blob([result as string], { type: "image/svg+xml" }), `${fileName}.svg`);
       } else {
-        const dataUrl = result as string;
-        const a = document.createElement("a");
-        a.href = dataUrl;
-        a.download = `${fileName}.${format}`;
-        a.click();
-        a.remove();
+        const response = await fetch(result as string);
+        const blob = await response.blob();
+        downloadBlob(blob, `${fileName}.${format}`);
       }
     }
 
@@ -166,17 +243,14 @@ export async function exportAs(
  * Import image for node (Tauri only).
  */
 export async function importImageForNode(): Promise<string> {
-  if (isTauri()) {
-    try {
-      const dataUri = await invokeTauri<string>("import_image_file");
-      return dataUri ?? "";
-    } catch (err) {
-      console.error("import_image_file failed", err);
-      throw err;
-    }
+  try {
+    const file = await promptForFile("image/*");
+    if (!file) return "";
+    return await readFileAsDataUrl(file);
+  } catch (err) {
+    console.error("import image failed", err);
+    throw err;
   }
-  alert("Image import is only available in the desktop application.");
-  return "";
 }
 
 /**

@@ -23,7 +23,7 @@ export async function invokeTauri<T = unknown>(
     return await invoke<T>(command, args);
   } catch (e) {
     console.error("Tauri invoke failed:", e);
-    return null;
+    throw e;
   }
 }
 

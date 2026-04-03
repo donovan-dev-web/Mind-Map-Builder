@@ -258,7 +258,8 @@ function ExportPageInternal() {
                 fileName,
                 backgroundColor: backgroundStyle === 'dark' ? '#2d2d2d' : backgroundStyle === 'white' ? '#ffffff' : undefined,
                 paperSize,
-                orientation
+                orientation,
+                margins,
             }
         );
 
