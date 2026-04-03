@@ -86,6 +86,7 @@ export interface ProjectConfig {
 
 export type MindMapCanvasHandles = {
   addNode: () => void;
+  addNodeAt: (position: { x: number; y: number }) => void;
   addSubNode: () => void;
   addSiblingNode: () => void;
   deleteSelected: () => void;
@@ -114,6 +115,7 @@ export type MindMapCanvasHandles = {
   zoomOut: () => void;
   fitView: (options?: { duration?: number }) => void;
   centerView: () => void;
+  focusNode: (nodeId: string) => void;
 };
 
 type MindMapCanvasProps = {
@@ -309,7 +311,7 @@ const MindMapCanvasComponent = forwardRef<MindMapCanvasHandles, MindMapCanvasPro
        dataForNode.poste = 'Directeur'; // Example data
        dataForNode.width = nodeLayout.width;
        dataForNode.height = nodeLayout.height;
-       rootNode = { id: '1', type: 'rectangle', position: { x: 0, y: 0 }, data: { ...dataForNode, resizable: true } };
+       rootNode = { id: '1', type: 'custom', position: { x: 0, y: 0 }, data: { ...dataForNode, resizable: true } };
      } else {
        rootNode = { id: '1', type: nodeType as string, position: { x: 0, y: 0 }, data: { ...dataForNode, width: 172, height: 40,  resizable: true} };
      }
@@ -395,20 +397,22 @@ const MindMapCanvasComponent = forwardRef<MindMapCanvasHandles, MindMapCanvasPro
       return newNode;
   }, [nodes.length]);
   
-  const addNode = useCallback((): void => {
-    const { x, y, zoom } = getViewport();
-    const position = project({ x: (window.innerWidth / 2 - x) / zoom, y: (window.innerHeight / 3 - y) / zoom });
+  const addNodeAt = useCallback((position: { x: number, y: number }): void => {
     const newNode = createNewNode(position, `${t.newNode} ${(nodes.length + 1)}`, 'rectangle');
 
     setCanvasState((prev: CanvasState): CanvasState => ({
       ...prev,
       nodes: [...prev.nodes.map(n => ({ ...n, selected: false })), { ...newNode, selected: true }]
     }), t.contextMenuAddNode);
-  }, [getViewport, project, createNewNode, t.newNode, nodes.length, setCanvasState]);
+  }, [createNewNode, t.newNode, nodes.length, setCanvasState, t.contextMenuAddNode]);
+
+  const addNode = useCallback((): void => {
+    const position = project({ x: window.innerWidth / 2, y: window.innerHeight / 3 });
+    addNodeAt(position);
+  }, [project, addNodeAt]);
   
 const addTextNode = useCallback((): void => {
-  const { x, y, zoom } = getViewport();
-  const position = project({ x: (window.innerWidth / 2 - x) / zoom, y: (window.innerHeight / 3 - y) / zoom });
+  const position = project({ x: window.innerWidth / 2, y: window.innerHeight / 3 });
   const newNode: Node = {
     id: `text-${Date.now()}`,
     type: 'text',
@@ -419,11 +423,10 @@ const addTextNode = useCallback((): void => {
     ...prev,
     nodes: [...prev.nodes.map(n => ({ ...n, selected: false })), { ...newNode, selected: true }]
   }), t.ribbonText);
-}, [getViewport, project, setCanvasState, t]);
+}, [project, setCanvasState, t]);
   
 const addImageNode = useCallback((): void => {
-  const { x, y, zoom } = getViewport();
-  const position = project({ x: (window.innerWidth / 2 - x) / zoom, y: (window.innerHeight / 3 - y) / zoom });
+  const position = project({ x: window.innerWidth / 2, y: window.innerHeight / 3 });
   const newNode: Node = {
     id: `image-${Date.now()}`,
     type: 'image',
@@ -439,7 +442,7 @@ const addImageNode = useCallback((): void => {
     ...prev,
     nodes: [...prev.nodes.map(n => ({ ...n, selected: false })), { ...newNode, selected: true }]
   }), t.ribbonImage);
-}, [getViewport, project, setCanvasState, t]);
+}, [project, setCanvasState, t]);
 
 const addSubNode = useCallback((): void => {
   setCanvasState((currentState: CanvasState): CanvasState => {
@@ -665,6 +668,7 @@ const connectSelectedNodes = useCallback((): void => {
     connectSelectedNodes,
     applyLayout,
     addNode,
+    addNodeAt,
     addTextNode,
     addImageNode,
     addSubNode,
@@ -674,14 +678,36 @@ const connectSelectedNodes = useCallback((): void => {
     zoomOut,
     fitView,
     centerView: () => {
-        if(selectedNodes.length > 0){
-            const node = selectedNodes[0];
-            const x = node.position.x + (node.data.width || node.width || 0) / 2;
-            const y = node.position.y + (node.data.height || node.height || 0) / 2;
-            const zoom = 1.5;
-            
-            setViewport({ x, y, zoom }, { duration: 800 })
-        }
+        const targetNodes = selectedNodes.length > 0 ? selectedNodes : nodes;
+        if (targetNodes.length === 0) return;
+        fitView({
+          nodes: targetNodes.map((node) => ({ id: node.id })),
+          duration: 800,
+          padding: 0.2,
+          maxZoom: 1.5,
+        });
+    },
+    focusNode: (nodeId: string) => {
+      setCanvasState((currentState: CanvasState): CanvasState => ({
+        ...currentState,
+        nodes: currentState.nodes.map((node: Node) => ({
+          ...node,
+          selected: node.id === nodeId,
+        })),
+        edges: currentState.edges.map((edge: Edge) => ({
+          ...edge,
+          selected: false,
+        })),
+      }), "Focus Node", true);
+
+      window.setTimeout(() => {
+        fitView({
+          nodes: [{ id: nodeId }],
+          duration: 800,
+          padding: 0.3,
+          maxZoom: 1.5,
+        });
+      }, 0);
     },
     restore,
     updateNodeData: (nodeId, data) => {
@@ -1011,9 +1037,9 @@ const connectSelectedNodes = useCallback((): void => {
   
   const handleAddNodeFromContext = useCallback(() => {
      const { x, y } = project({ x: contextMenu.x, y: contextMenu.y });
-     addNode();
+     addNodeAt({ x, y });
      closeContextMenu();
-  }, [project, contextMenu.x, contextMenu.y, addNode, closeContextMenu]);
+  }, [project, contextMenu.x, contextMenu.y, addNodeAt, closeContextMenu]);
 
   const handleAddChildNodeFromContext = useCallback(() => {
     addSubNode();

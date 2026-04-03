@@ -123,6 +123,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { openProject, saveProject, importImageForNode, listenForOpenFile, exportAs } from "@/services/project-manager";
 import { useToast } from "@/hooks/use-toast";
 import { useUpdater } from "@/hooks/use-updater";
+import { openDesignerWindow } from "@/services/window.service";
 
 
 const CustomNodePropertiesPanel = ({ node, onUpdateData, translations: t }: { node: Node, onUpdateData: (nodeId: string, data: any) => void, translations: any }) => {
@@ -405,7 +406,7 @@ function EditorUI({ projectConfig, loadedProject, onProjectLoad }: { projectConf
   const t = translations[config.language];
   const { toast } = useToast();
   const reactFlowInstance = useReactFlow();
-  const headerRef = useRef<HTMLHeadElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<MindMapCanvasHandles>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const navigate = useNavigate();
@@ -762,7 +763,7 @@ function EditorUI({ projectConfig, loadedProject, onProjectLoad }: { projectConf
     const layoutToEdit = nodeToEdit.data.layout;
     if (layoutToEdit) {
       sessionStorage.setItem('edit-node-layout', JSON.stringify(layoutToEdit));
-      window.location.href = "/designer";
+      navigate("/designer");
     }
   };
 
@@ -781,16 +782,20 @@ function EditorUI({ projectConfig, loadedProject, onProjectLoad }: { projectConf
   const onExport = () => {
     const diagramState = reactFlowInstance.toObject();
     sessionStorage.setItem('export-diagram-state', JSON.stringify(diagramState));
-    window.location.href = "/export";
+    navigate("/export");
   };
 
   const currentNodeType = selectedNodes.length > 0 ? selectedNodes[0].type : null;
   
   const handleSearchResultClick = (nodeId: string) => {
-    reactFlowInstance.fitView({ nodes: [{ id: nodeId }], duration: 800, maxZoom: 1.5 });
-    reactFlowInstance.setNodes(prev => prev.map(n => ({...n, selected: n.id === nodeId})));
+    canvasRef.current?.focusNode(nodeId);
     setIsSearchOpen(false);
     setSearchTerm("");
+  };
+
+  const handleEdgeLineStyleChange = (value: "solid" | "dashed") => {
+    setEdgeLineStyle(value);
+    handleEdgeStyleChange({ strokeDasharray: value === "dashed" ? "5 5" : undefined });
   };
 
   const handleImportImageForNode = async (nodeId: string) => {
@@ -975,25 +980,7 @@ function EditorUI({ projectConfig, loadedProject, onProjectLoad }: { projectConf
                 <TabsContent value="designer" className="m-0 p-1 flex-1 h-full">
                    <div className="flex items-start gap-0 h-full">
                       <RibbonGroup title={t.ribbonGroupTemplates}>
-                          <RibbonButton icon={FilePlus} label={t.new} tooltipLabel={t.tooltipNewStyleTemplate} size="medium" onClick={() => { // crée une nouvelle sous-fenêtre Tauri
-                                                                                                                                              const designerWindow = new WebviewWindow("designer-window", {
-                                                                                                                                                url: "/designer", // <-- ta route React
-                                                                                                                                                title: "Designer",
-                                                                                                                                                width: 1000,
-                                                                                                                                                height: 700,
-                                                                                                                                                resizable: true,
-                                                                                                                                              });
-
-                                                                                                                                              // debug si jamais la fenêtre n'arrive pas à se charger
-                                                                                                                                              designerWindow.once("tauri://created", () => {
-                                                                                                                                                console.log("Fenêtre Designer créée avec succès !");
-                                                                                                                                              });
-
-                                                                                                                                              designerWindow.once("tauri://error", (e) => {
-                                                                                                                                                console.error("Erreur lors de la création de la fenêtre Designer :", e);
-                                                                                                                                              });
-                                                                                                                                            }}
-                                                                                                                                            />
+                          <RibbonButton icon={FilePlus} label={t.new} tooltipLabel={t.tooltipNewStyleTemplate} size="medium" onClick={() => openDesignerWindow(navigate)} />
                           <RibbonButton icon={FileEdit} label={t.ribbonEdit} tooltipLabel={t.tooltipEditStyleTemplate} disabled={!canEditCustomNode} onClick={handleEditCustomNode} size="medium" />
                       </RibbonGroup>
                    </div>
@@ -1013,7 +1000,7 @@ function EditorUI({ projectConfig, loadedProject, onProjectLoad }: { projectConf
                      <Separator orientation="vertical" className="h-20"/>
                       <RibbonGroup title={t.ribbonGroupControls}>
                          <RibbonButton icon={Lock} label={t.ribbonLock} tooltipLabel={t.tooltipLockCanvas} onClick={() => setIsLocked(!isLocked)} variant={isLocked ? "default" : "ghost"} size="medium" />
-                         <RibbonButton icon={LocateFixed} label={t.ribbonCenter} tooltipLabel={t.tooltipCenterView} onClick={centerView} disabled={selectedNodes.length === 0} size="medium" />
+                         <RibbonButton icon={LocateFixed} label={t.ribbonCenter} tooltipLabel={t.tooltipCenterView} onClick={centerView} size="medium" />
                       </RibbonGroup>
                    </div>
                 </TabsContent>
@@ -1248,7 +1235,7 @@ function EditorUI({ projectConfig, loadedProject, onProjectLoad }: { projectConf
                                     </div>
                                     <div className="space-y-2">
                                         <Label>{t.propertiesLineStyle}</Label>
-                                        <Select value={edgeLineStyle} onValueChange={val => toggleEdgeLineStyle()}>
+                                        <Select value={edgeLineStyle} onValueChange={(val) => handleEdgeLineStyleChange(val as "solid" | "dashed")}>
                                             <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="solid">{t.solid}</SelectItem>
